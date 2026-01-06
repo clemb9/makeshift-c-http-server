@@ -1,0 +1,7 @@
+- get_nextline currently doesnt allow to process very last line, which is bad
+ -> find a way to fix the function or a workaround
+ -> currently being used in:
+	-> process_header
+	-> get_ressource_path
+	-> serve
+

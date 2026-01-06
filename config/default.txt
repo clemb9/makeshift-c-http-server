@@ -1,0 +1,3 @@
+/ ../www/index.html
+/favicon.ico ../www/favicon.ico
+/img.png ../www/img.png

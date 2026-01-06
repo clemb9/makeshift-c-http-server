@@ -1,0 +1,26 @@
+Load default config from text file
+	Looking like:
+
+[ressource_name]<WHITESPACE>[ressource relative path]
+...
+[ressource_name]<WHITESPACE>[ressource relative path]
+
+Hash it so that reading the ressource name allows to get key into ressource map.
+According to function:
+	
+	"/" = 0
+
+	"/[name]"
+
+
+n=number of ressources
+
+- Want all the indexes to range from 0 to n-1
+- Maybe handle the sub-directories (i.e number of slashes) ?
+- Struct containing an array of strings (for paths) ?
+- Something % n, surely ?
+
+Using alphabet:
+
+abcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;= starting from 1, n=58
+
