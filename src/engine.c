@@ -78,22 +78,21 @@ char *convert_case(char *str, int n, int flag)
 	return str;
 }
 
-// request as a bitstring 
-// 1 GET
-// 2 POST
-
+// Get length of the line
+// Does not include termination characters
+// 0 means line is empty
 size_t get_linesize(char *buffer)
 {
-	int i = 0;
+	size_t i = 0;
 
 	for ( ; ; ) 
 	{
+		// If you encounter newline, carriage return new line or null term, return the counter
 		if ( (buffer[i] == '\n') | ( (strncmp(buffer+i, "\r\n", 2)) == 0) | (buffer[i] == '\0') ) 
 			return i;
-			i++;
+		// Else increment the counter and go again
+		i++;
 	}
-
-	// assumes buffer is null terminated
 }
 
 
@@ -175,8 +174,7 @@ start:
 	// [---] Process first line
 	line_size = get_linesize(bufptr);
 	
-	// If the first line is also the last, starts with a newline or the buffer is empty
-	if ( (line_size < 0) | (line_size == 0) )
+	if ( line_size == 0 )
 	{
 		resp_invalid(sockfd);
 		goto start;

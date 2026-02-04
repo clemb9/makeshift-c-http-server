@@ -1,3 +1,4 @@
+// utils.h
 #ifndef header
 #define header
 
@@ -118,7 +119,7 @@ void 	sig_chld(int signo);
 
 // Engine functions
 char 	*convert_case(char *str, int n, int flag);
-int		get_linesize(char *buffer);
+size_t	get_linesize(char *buffer);
 ssize_t parse(char *request);
 void 	serve(int sockfd, struct rf_table *lkp_table);
 void	process_parameters(int argc, char **argv, struct rf_table *lkp_table);
