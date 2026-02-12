@@ -19,6 +19,13 @@ int get_content_length(char *path_to_ressource)
 	int	fd;
 	int n, sum;
 	char buffer[1024];
+	printf("path:|%s|\n", path_to_ressource);
+	getcwd(buffer, 1024);
+	printf("wd:|%s|\n", buffer);
+	fflush(stdout);
+	
+	buffer[0] = '\0';
+		
 	fd = Open(path_to_ressource, O_RDONLY);
 	
 	sum = 0;
@@ -61,8 +68,9 @@ char *prep_response(char *dst, char *path_to_ressource) // Append server, date, 
 	
 	get_date_hdr(dst);
 	get_content_type(type, path_to_ressource);
+	printf("here 11\n");
 	length = get_content_length(path_to_ressource);
-	
+	printf("here 22\n");
 	snprintf(dst + strlen(dst), 128, "Server: Homemade Linux Webserver\nContent-Type: %s\n",type);
 	if (length > 0) 
 			snprintf(dst + strlen(dst), 64, "Content-Length: %d\n\n", length);
@@ -83,11 +91,14 @@ void resp_get(int sockfd, char *ressource_path)
 	snprintf(reply, 64, "HTTP/1.1 200 OK\n");
 	prep_response(reply, ressource_path);
 	// Prep file
+	printf("path: %s\n", ressource_path);
+	fflush(stdout);
 	fd = Open(ressource_path, O_RDONLY);
+	
 	// Send response
 	printf("[.] Reply header: %s\n", reply);
 	Write(sockfd, reply, strlen(reply));
-	while (n = Read(fd, buffer, MAX_BUF))
+	while ( (n = Read(fd, buffer, MAX_BUF)) )
 	{
 		Writen(sockfd, buffer, n);	
 	}	

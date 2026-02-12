@@ -32,23 +32,41 @@ int parse_verb(char *verb)
 
 int get_ressource_path(char *name, char *dst, struct rf_table *lkp_table)
 {
-	int 	n;
-	char 	*ptr = lkp_table->table;
-
-	int		increment = 0;
+	char 		*ptr = lkp_table->table;
+	size_t		line_size = 0;
 	
 	for (;;)
-	{	
+	{
+		if (strncmp(ptr, "\n", 1) == 0)
+			{
+			ptr++;
+			}
+		
+		if (strncmp(ptr, "\r\n", 2) == 0)
+			{
+			ptr+=2;
+			}
+
+		// reached end of lkp table
+		if (*ptr == '\0')
+		{
+			break;
+		}	
+
 		if ( strncmp(name, ptr, strlen(name) ) ) // if it doesn't return 0: different strings, not on this line
 		{
-			increment = get_linesize(ptr);
-			if (increment < 0) // reached end of string
-			{
-				break; 		
-			}
-			
-
+			line_size = get_linesize(ptr);
+			ptr += line_size;	
 		}	
+		else
+			{
+			line_size = get_linesize(ptr);
+			
+			strncpy(dst, ptr+(strlen(name)+1), line_size - (strlen(name)+1)); // name of ressource plus space size (1 byte)
+			
+			nullt(dst);
+			return 1;
+			}
 	}	
 	
 	return -1;
@@ -95,9 +113,6 @@ size_t get_linesize(char *buffer)
 	}
 }
 
-
-
-
 void serve(int sockfd, struct rf_table *lkp_table)
 {
 	int 	n, n_read, line_size, hdrs_flag, head_size;
@@ -122,7 +137,9 @@ start:
 	hdrs_flag 			= 0;
 	n_read 				= 0;
 	line_index 			= 0;
+	head_size			= 0;
 	bzero(&param_list, sizeof(param_list));
+
 
 	// Read the headers
 	while (0 == hdrs_flag)
@@ -131,7 +148,7 @@ start:
 		
 		n = read(sockfd, bufptr+n_read, MAX_REQ);
 		n_read += n;
-		printf("just read %d bytes from socket\n", n);
+		
 		if (n == -1)
 		{	
 			if (errno == EINTR)
@@ -174,6 +191,7 @@ start:
 	// [---] Process first line
 	line_size = get_linesize(bufptr);
 	
+	// If the message starts with a newline or is empty
 	if ( line_size == 0 )
 	{
 		resp_invalid(sockfd);
@@ -188,24 +206,28 @@ start:
 	token = strtok(line, " ");
 	verb = parse_verb(token);	
 	
+
 	// [----] Save ressource name
 	if (verb == GET)
 		{	
 		token = strtok(NULL, " ");
+		
 		strcpy(ressource_name, token);
+		nullt(ressource_name);
 		}
-	printf("processing headers...\n");
+	
 	// Iterate over the next parameters		
 	if ( (n = process_headers(bufptr+line_index, &param_list) ) == -1) // Return 400, no header
 		{
 		resp_invalid(sockfd);						
 		goto start;
 		}
-	
+		
 	if (verb == GET)
 	{
 		if ( (n = get_ressource_path(ressource_name, ressource_path, lkp_table)) ==-1 )
 		{
+			printf("[.] Ressource not found\n");
 			resp_notfound(sockfd);
 			goto start;
 		}
@@ -217,56 +239,68 @@ start:
 
 
 // Process headers is passed a pointer to headers from the request (without the body)
-size_t process_headers(char *request, struct params *param_list)
+// Want to:
+// 		Loop over the headers, fill in the param_list structure as you go.
+// 		Return invalid if there is no host.
+int process_headers(char *request, struct params *param_list)
 {
-	int line_size;
-	int	n = -1;
-	int running = 1;
-	char line[MAX_LINE];
-	
-	printf("processing headers from request: %s", request);
+	int 	line_size;	
+	int		n = -1;
+	int 	running = 1;
+	char 	line[MAX_LINE];
+	char 	buf[MAX_BUF];
 
-	printf("%d", request[0]);
+	buf[0] = '\0';
 
-	while (running)
-	{
-		// Adjust for the newline character(s) after line_size increment
-		if (request[0] == '\n') 
-		{	
-			request++;
-			printf("adding padding..\n");
-		}
-		if (strncmp(request, "\r\n", 2) == 0)
-		{request+=2;
-			printf("pushing");	
-		}
-		line[0] = '\0';
-		
-		if ( (line_size = (get_linesize(request))) == 0 ) // Have encountered the double newline that terminates the request headers
-			break;	
-		
-		if (line_size < 0) // Reached end of buffer, somehow not terminated with double new line ; server accepts it
+	// Each loop run processes one line
+	while (running) {
+		// First check for double empty line, which signifies end of
+		// headers
+		if ( (strncmp(request, "\r\n\r\n", 4) == 0) || (strncmp(request, "\n\n", 2) == 0 ) )
+			{
 			running = 0;
+			break;	
+			}
 
-		strncpy(line, request, line_size);
-		convert_case(line, line_size, LOWER);
+		// Then check for newline and go to next line if there's one
+		if (strncmp(request, "\r\n", 2) == 0)
+				request+=2;
 		
-		if (strncmp(line, "host:", 5) == 0)
-		{
-			// Host is set, package has reached, don't care about rest for now.
-			n = 1;
-		}
+		if (strncmp(request, "\n", 1) == 0)
+				++request;
 
-		if (strncmp(line, "content-length:", 15) == 0)
-		{
-			int diff = line_size - 15;	
-			if (diff <= 0) // If header present but not specified
-				return -1;		
-		}
+		// If the message ends 	abruptly, return invalid request 
+		if (*request == '\0')
+			{
+			n = -1;
+			running = 0;
+			break;
+			}
+		// Ready to read the line
+		line[0] = '\0';
+		line_size = get_linesize(request);
 	
-		request += line_size; 
-		printf("looping over...");
-	}	
+		strncpy(line, request, line_size); // Copy the line to our line buffer
+		line[line_size] = '\0';		//null term it
+		
+		convert_case(line, line_size, LOWER); 
+	
+		if ( strncmp(line, "host:", 5) == 0 )
+			{
+			n = 1;
+			strncpy(buf, line+5, line_size-5);
+			nullt(buf);	
+			
+			remove_whitespaces(buf, strlen(buf), LEADTRAIL);
+			
+			strncpy(param_list->host, buf, strlen(buf));
+			nullt(param_list->host);	
+			}
+	
+		// Go to the end of the line
+		request = request + line_size;
+	}
+	
 	return n;
 }
 
@@ -313,7 +347,7 @@ void load_config(char *path_to_config, struct rf_table *lkp_table)
 		strncpy(lkp_table->table + strlen(lkp_table->table), buf, size);
 	}
 	Close(fd);
-	printf("[.] Ressources loaded: %s", lkp_table->table);
+	printf("[.] Ressources loaded: %s\n", lkp_table->table);
 
 }
 
@@ -339,6 +373,57 @@ void process_parameters(int argc, char **argv, struct rf_table *lkp_table)
 	printf("[.] Ressources: %s\n", lkp_table->table);
 }
 
+// Remove leading, trailing whitespaces, or both
+int remove_whitespaces(char *str, int n, int flag)
+{
+	int i;
+	char buff[MAX_BUF];
+	if (n < 1)
+	{
+		return -1;
+	}
+
+	if (flag == LEADING || flag == LEADTRAIL)
+		{
+		// Count from start until you encounter a non whitespace character
+		for (i=0; i<n; i++) // Count the whitespaces with i
+			{
+				if (str[i] != ' ')
+					break;
+			}
+		if (i>0) {
+			printf("here2\n");
+			strncpy(buff, str, n); // Copy to buffer first	
+			strncpy(str, buff+i, n-i); // Copy the message without the whitespaces
+			str[n-i] = '\0';
+			
+			printf("here3\n");
+			
+			if (flag == LEADTRAIL)
+				{
+				n = n-i; // Adjust for the new number of characters
+				}
+			}
+		}
+
+	if (flag == TRAILING || flag == LEADTRAIL)
+	{
+		// Count from the end until you encounter a non whitesppace character
+		for (i=n-1; i>0; i--)
+			{
+			if (str[i] != ' ')
+				break;	
+			}
+
+		if (i>0)
+			{
+			printf("here4\n");
+			str[i+1] = '\0';
+			}
+	}
+
+	return 0;
+}
 
 
 // Notes for later:

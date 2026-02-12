@@ -46,12 +46,17 @@
 #define SERV_PORT 80
 #define PFIX "../wwww/"
 
+#define nullt(string) string[strlen(string)] = '\0'
+
 // file sizes
 #define NOTFOUND 	426
 #define BADREQ		419
 // --- Enums
 // Lower and upper case
 enum {LOWER, UPPER};
+
+// Whitespaces
+enum {LEADING, TRAILING, LEADTRAIL};
 
 // Requests type
 enum  {INVALID, GET, POST, HEAD, PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH};
@@ -119,13 +124,14 @@ void 	sig_chld(int signo);
 
 // Engine functions
 char 	*convert_case(char *str, int n, int flag);
+int		remove_whitespaces(char *str, int n, int flag);
 size_t	get_linesize(char *buffer);
 ssize_t parse(char *request);
 void 	serve(int sockfd, struct rf_table *lkp_table);
 void	process_parameters(int argc, char **argv, struct rf_table *lkp_table);
 void	get_content_type(char *ressource_path, char *dst);
 int		get_ressource_path(char *name, char *dst, struct rf_table *lkp_table);	
-size_t	process_headers(char *request, struct params *param_list);
+int		process_headers(char *request, struct params *param_list);
 void	print_help_exit();
 // - Response functions
 char 	*get_date_hdr(char *dst);
